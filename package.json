@@ -1,0 +1,21 @@
+{
+  "name": "FileManager",
+  "version": "1.0.0",
+  "description": "",
+  "main": "build.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "alea": "^1.0.1",
+    "electron": "^30.0.2",
+    "p-limit": "^6.2.0",
+    "simplex-noise": "^4.0.1"
+  },
+  "devDependencies": {
+    "electron-reload": "^2.0.0-alpha.1"
+  }
+}
