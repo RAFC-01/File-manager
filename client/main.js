@@ -1,13 +1,11 @@
 const os = require('os');
+const {shell} = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
+const { console } = require('inspector');
 
-let number = 0;
-
-document.addEventListener('mousedown', () => {
-    number++;
-    document.querySelector('body').innerHTML = number;
-});
+const searchText = document.getElementById('search');
+const searchInfo = document.getElementById('searchInfo');
 
 /**
  * @typedef file
@@ -29,6 +27,9 @@ if (!dirExists(savePath)){
   fs.mkdir(savePath);
 }
 
+const G_flags = {
+  updateSearch: false
+};
 
 async function tryToLoadFiles(){
   try {
@@ -38,6 +39,8 @@ async function tryToLoadFiles(){
     console.error(error)
   }
 }
+let G_lastSearchTime = 0;
+let G_currentSearchResults = [];
 function clamp(val, min, max){
   return Math.max(min, Math.min(val, max));
 }
@@ -47,7 +50,9 @@ function clamp(val, min, max){
  * @returns 
  */
 function searchFiles(search = ""){
-  console.time('search');
+  search = search.toLowerCase();
+  G_lastSearchTime = Date.now();
+  const startTime = performance.now();
   let list = [];
   let mode = 0;
   if (search == '*') return files;
@@ -56,7 +61,11 @@ function searchFiles(search = ""){
     let f = files[i];
     if (mode == 0){
       let score = 0;
-      if (f.name.includes(search)) score += 1;
+      let name = f.name.toLowerCase();
+      if (name.includes(search)) score += 1;
+      let searchIndex = name.indexOf(search);
+      let changedName = f.name.substring(0, searchIndex) + '<b class="foundPart">' + f.name.substring(searchIndex, searchIndex + search.length) + '</b>' + f.name.substring(searchIndex + search.length, f.name.length);
+      f.changedName = changedName;
       let lengthDiff = Math.abs(search.length - f.name.length);
       score += 1 - clamp(lengthDiff / 100, 0, 1);
       if (score > 1){
@@ -71,8 +80,12 @@ function searchFiles(search = ""){
     }
     // if (list.length > 100) break;
   }
-  console.timeEnd('search');
-  return list.sort((a, b) => b.score - a.score);
+  const searchTime = performance.now() - startTime;
+
+  searchInfo.innerHTML = `Found ${list.length} results in ` + (Math.floor(searchTime) / 1000).toFixed(2) + ' sec';
+
+  G_currentSearchResults = list.sort((a, b) => b.score - a.score);
+  renderSearch();
 }
 
 async function dirExists(path) {
@@ -107,6 +120,7 @@ function getAppData(){
 
 async function findAllFiles(dir) {
   console.time('find files');
+  files = [];
   let currentLength = 0;
   const concurrency = 10; 
   const active = new Set(); // track currently running tasks
@@ -155,4 +169,82 @@ async function findAllFiles(dir) {
 }
 
 // findAllFiles('C:/').catch(console.error);
-tryToLoadFiles();
+async function renderSearch(){
+  // console.log(G_currentSearchResults);
+
+  const itemCount = G_currentSearchResults.length;
+  const itemHeight = 30;
+  const container = document.getElementById('search_results');
+  const spacer = document.getElementById('spacer');
+  const visibleItems = document.getElementById('visibleItems');
+
+  spacer.style.height = (itemCount * itemHeight) + 'px';
+
+  const scrollTop = container.scrollTop;
+
+  const startIdx = Math.floor(scrollTop / itemHeight);
+  const visibleCount = Math.ceil(container.clientHeight / itemHeight) + 1;
+  const endIdx = Math.min(itemCount, startIdx + visibleCount);
+
+  for (let i = startIdx; i < endIdx; i++){
+    const item = G_currentSearchResults[i].file;
+    item.stat = await fs.stat(item.path);
+  }
+
+  visibleItems.style.transform = `translateY(${startIdx * itemHeight}px)`;
+
+  let html = '';
+  for (let i = startIdx; i < endIdx; i++){
+    const item = G_currentSearchResults[i].file;
+    html+= `
+      <div class='item' style='height: ${itemHeight}px'>
+        <div class='fileName' title='${item.name} \nPath: ${item.path}' data-path="${item.path}">${item.changedName || item.name}</div>
+        <div class='filePath'>${item.stat.mtime}</div>
+      </div>
+    `
+  }  
+  visibleItems.innerHTML = html;
+}
+
+searchText.addEventListener('input', (e) => {
+  let search = e.target.value;
+  G_flags.lastKeyPress = Date.now();
+  G_flags.updateSearch = true;
+  G_flags.currentSearch = search;
+})
+
+document.getElementById('search_results').addEventListener('scroll', () => {
+    renderSearch();
+});
+
+function updateLoop(){
+  requestAnimationFrame(updateLoop);
+  if (G_flags.updateSearch && Date.now() - G_flags.lastKeyPress > 200){
+    searchFiles(G_flags.currentSearch);
+    G_flags.updateSearch = false;
+  }
+}
+updateLoop();
+
+/** @type {HTMLDivElement} */
+let G_currentSelectedName;
+
+document.addEventListener('mousedown', (e) => {
+  if (e.target.className.includes('fileName')){
+    if (G_currentSelectedName) G_currentSelectedName.classList.remove('fileName_selected');
+    G_currentSelectedName = e.target;
+    G_currentSelectedName.classList.add('fileName_selected');
+  }
+});
+document.addEventListener('dblclick', (e) => {
+  if (e.target.className.includes('fileName')){
+    let path = e.target.dataset.path;
+    shell.openPath(path);
+  }
+})
+
+window.onload = async () => {
+  await tryToLoadFiles();
+  searchText.value = "pixelart-editor"; 
+  searchFiles("pixelart-editor");
+}

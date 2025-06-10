@@ -4,9 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="main.js" defer></script>
-    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+    <title>File manager</title>
 </head>
-<body style="color: white;">
-    test
+<body>
+    <div id="content">
+        <div id="searchBar">
+            <input type="text" placeholder="Type to search" id="search" autocorrect="off" autocomplete="off" spellcheck="false"/>
+            <div id="searchInfo"></div>
+        </div>
+        <div id="search_header">
+            <div id="nameHeader" class="headerSection">Name</div>
+            <div id="pathHeader" class="headerSection">Path</div>
+            <div class="headerSection" ></div>
+        </div>
+        <div id="search_results">
+            <div id="spacer"></div>
+            <div id="visibleItems"></div>
+        </div>
+    </div>
+    <canvas></canvas>
 </body>
 </html>

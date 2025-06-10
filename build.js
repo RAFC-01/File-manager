@@ -21,7 +21,11 @@ const createWindow = () => {
     })
   
     win.loadFile(mainPath);
-    // win.removeMenu();
+    win.removeMenu();
+
+    if (devMode){
+      win.webContents.openDevTools();
+    }
     // win.setFullScreen(true);
   }
 
