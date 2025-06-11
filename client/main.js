@@ -197,7 +197,7 @@ async function renderSearch(){
     try{
       if (!item.stat.mtime) item.stat = await fs.stat(path.join(item.path, item.name));
     }catch(err){
-
+      console.log(err);
     }
   }
 
@@ -219,7 +219,7 @@ async function renderSearch(){
         <div class='fileName fileData' title='${escape(item.name)} \nPath: ${escape(item.path)}' data-path="${escape(item.path)}"><span>${escape(item.changedName) || escape(item.name)}</span></div>
         <div class='filePath fileData'>${escape(item.path)}</div>
         <div class='fileSize fileData'>${formatFileSize(item.stat.size) || ""}</div>
-        <div class='fileMtime fileData'>${dateString}</div>
+        <div class='fileMtime fileData'>${day ? dateString : "Unknown"}</div>
       </div>
     `
   }  
@@ -281,6 +281,5 @@ function formatFileSize(bytes) {
 }
 window.onload = async () => {
   await tryToLoadFiles();
-  searchText.value = "pixelart-editor"; 
-  searchFiles("pixelart-editor");
+  searchFiles("");
 }
