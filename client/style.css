@@ -6,6 +6,15 @@ body{
     color: white;
     background-color: #1d1d1d;
 }
+#background{
+    position: fixed;
+    opacity: 0.05;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+}
 canvas{
     position: fixed;
 }
@@ -39,9 +48,10 @@ canvas{
     height: 58px;
 }
 #search{
-    width: 100%;
-    height: 30px;
-    border: none;
+    width: calc(100% - 15px);
+    height: 20px;
+    border: 5px solid #1d1d1d;
+    border-radius: 10px;
     outline: none;
 }
 #searchInfo{
@@ -53,10 +63,6 @@ canvas{
     color: rgb(221, 105, 105);
     pointer-events: none;
 }
-.fileName{
-    cursor: pointer;
-    width: fit-content;
-}
 .fileName_selected{
     outline: 2px dotted green;
     background-color: blue;
@@ -66,6 +72,7 @@ canvas{
 #search_header{
     height: 25px;
     width: 100%;
+    min-width: fit-content;
     display: flex;
     background-color: #272727;
 }
@@ -75,26 +82,42 @@ canvas{
 #pathHeader{
     width: 400px;
 }
+#sizeHeader{
+    width: 100px;
+}
+#modHeader{
+    width: 200px;
+}
 .headerSection:not(:first-of-type){
     border-left: 1px solid white;
     padding-left: 5px;
 }
 .headerSection{
     padding-left: 5px;
+    margin-left: 5px;
 }
-.fileName{
-    max-width: 300px;
-    width: 300px;
-    overflow: hidden;
-    word-break: keep-all;
+.fileData{
     text-wrap: nowrap;
+    word-break: keep-all;
     text-overflow: ellipsis;
-}
-.filePath{
-    text-wrap: nowrap;
-    word-break: keep-all;
-    width: 400px;
+    flex-shrink: 0;
     overflow: hidden;
     padding-left: 5px;
-    text-overflow: ellipsis;
+    margin-right: 5px;
+}
+.fileName > span {
+    pointer-events: none;
+}
+.fileName{
+    cursor: pointer;
+    width: 300px;
+}
+.filePath{
+    width: 400px;
+}
+.fileSize{
+    width: 100px;   
+}
+.fileMtime{
+    width: 200px;
 }

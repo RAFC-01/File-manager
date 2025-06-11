@@ -55,20 +55,26 @@ function searchFiles(search = ""){
   const startTime = performance.now();
   let list = [];
   let mode = 0;
-  if (search == '*') return files;
+  if (search == '*'){ 
+    G_currentSearchResults = files;
+    renderSearch();
+    return;
+  };
   if (search.substring(0, 2) == '*.' || search[0] == '.') mode = 1;
+  console.log(mode);
   for (let i = 0; i < files.length; i++){
     let f = files[i];
     if (mode == 0){
       let score = 0;
       let name = f.name.toLowerCase();
       if (name.includes(search)) score += 1;
-      let searchIndex = name.indexOf(search);
-      let changedName = f.name.substring(0, searchIndex) + '<b class="foundPart">' + f.name.substring(searchIndex, searchIndex + search.length) + '</b>' + f.name.substring(searchIndex + search.length, f.name.length);
-      f.changedName = changedName;
       let lengthDiff = Math.abs(search.length - f.name.length);
       score += 1 - clamp(lengthDiff / 100, 0, 1);
       if (score > 1){
+        let searchIndex = name.indexOf(search);
+        let changedName = f.name.substring(0, searchIndex) + '<b class="foundPart">' + f.name.substring(searchIndex, searchIndex + search.length) + '</b>' + f.name.substring(searchIndex + search.length, f.name.length);
+        f.changedName = changedName;
+
         list.push({file: f, score: score});
       }
     }
@@ -188,7 +194,11 @@ async function renderSearch(){
 
   for (let i = startIdx; i < endIdx; i++){
     const item = G_currentSearchResults[i].file;
-    item.stat = await fs.stat(item.path);
+    try{
+      if (!item.stat.mtime) item.stat = await fs.stat(path.join(item.path, item.name));
+    }catch(err){
+
+    }
   }
 
   visibleItems.style.transform = `translateY(${startIdx * itemHeight}px)`;
@@ -196,10 +206,20 @@ async function renderSearch(){
   let html = '';
   for (let i = startIdx; i < endIdx; i++){
     const item = G_currentSearchResults[i].file;
+
+    const date = new Date(item.stat.mtime);
+    const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate();
+    const month = (date.getMonth()+1) < 10 ? '0' + (date.getMonth()+1) : (date.getMonth()+1);
+    const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes();
+    const hour = date.getHours() < 10 ? '0' + date.getHours() : date.getHours() ;
+    const dateString = day + '/'+ month + '/' + date.getFullYear() + ' ' + hour + ':' + minutes;
+
     html+= `
       <div class='item' style='height: ${itemHeight}px'>
-        <div class='fileName' title='${item.name} \nPath: ${item.path}' data-path="${item.path}">${item.changedName || item.name}</div>
-        <div class='filePath'>${item.stat.mtime}</div>
+        <div class='fileName fileData' title='${escape(item.name)} \nPath: ${escape(item.path)}' data-path="${escape(item.path)}"><span>${escape(item.changedName) || escape(item.name)}</span></div>
+        <div class='filePath fileData'>${escape(item.path)}</div>
+        <div class='fileSize fileData'>${formatFileSize(item.stat.size) || ""}</div>
+        <div class='fileMtime fileData'>${dateString}</div>
       </div>
     `
   }  
@@ -231,8 +251,9 @@ let G_currentSelectedName;
 
 document.addEventListener('mousedown', (e) => {
   if (e.target.className.includes('fileName')){
+    let div = e.target.children[0];
     if (G_currentSelectedName) G_currentSelectedName.classList.remove('fileName_selected');
-    G_currentSelectedName = e.target;
+    G_currentSelectedName = div;
     G_currentSelectedName.classList.add('fileName_selected');
   }
 });
@@ -243,6 +264,21 @@ document.addEventListener('dblclick', (e) => {
   }
 })
 
+function escape(text){
+  if (!text) return;
+  const safeText = text.replace(/[&'`]/g, char => {
+    return `\\${char}`; // escapes with backslash
+  });
+  return safeText;
+}
+function formatFileSize(bytes) {
+  if (!bytes) return false;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  if (bytes === 0) return '0 B';
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const size = bytes / Math.pow(1024, i);
+  return `${size.toFixed(2)} ${sizes[i]}`;
+}
 window.onload = async () => {
   await tryToLoadFiles();
   searchText.value = "pixelart-editor"; 
