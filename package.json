@@ -12,6 +12,9 @@
   "dependencies": {
     "alea": "^1.0.1",
     "electron": "^30.0.2",
+    "fast-folder-size": "^2.4.0",
+    "fast-glob": "^3.3.3",
+    "get-folder-size": "^5.0.0",
     "p-limit": "^6.2.0",
     "simplex-noise": "^4.0.1"
   },

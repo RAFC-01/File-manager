@@ -171,10 +171,9 @@ async function findAllFiles(dir) {
   console.timeEnd('find files');
   console.log(`Total entries visited: ${currentLength}`);
 
-  fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
+  await fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
 }
 
-// findAllFiles('C:/').catch(console.error);
 async function renderSearch(){
   // console.log(G_currentSearchResults);
 
@@ -195,9 +194,9 @@ async function renderSearch(){
   for (let i = startIdx; i < endIdx; i++){
     const item = G_currentSearchResults[i].file;
     try{
-      if (!item.stat.mtime) item.stat = await fs.stat(path.join(item.path, item.name));
+      if (!item.stat) item.stat = await fs.stat(path.join(item.path, item.name));
     }catch(err){
-      console.log(err);
+      // console.log(err);
     }
   }
 
@@ -206,6 +205,8 @@ async function renderSearch(){
   let html = '';
   for (let i = startIdx; i < endIdx; i++){
     const item = G_currentSearchResults[i].file;
+
+    if (!item.stat) item.stat = {};
 
     const date = new Date(item.stat.mtime);
     const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate();
@@ -279,7 +280,29 @@ function formatFileSize(bytes) {
   const size = bytes / Math.pow(1024, i);
   return `${size.toFixed(2)} ${sizes[i]}`;
 }
+const fastFolder = require('fast-folder-size');
+const { exec } = require('child_process');
+const { stdout } = require('process');
 window.onload = async () => {
+  await findAllFiles('C:/').catch(console.error);
+
   await tryToLoadFiles();
   searchFiles("");
+  // fastFolder('C:\\', {}, (err, bytes) => {
+  //   if (err) console.log(err)
+  //   else console.log(formatFileSize(bytes), bytes)
+  // })
+}
+function escapeJsonString(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/\\/g, '\\\\') // Escape backslashes
+    .replace(/"/g, '\\"') // Escape double quotes
+    .replace(/\n/g, '\\n') // Escape newlines
+    .replace(/\r/g, '\\r') // Escape carriage returns
+    .replace(/\t/g, '\\t') // Escape tabs
+    .replace(/\f/g, '\\f') // Escape form feeds
+    .replace(/\b/g, '\\b') // Escape backspaces
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, (c) => // Escape control characters
+      `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }

@@ -1,7 +1,7 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-const devMode = false;
+const devMode = true;
 
 if (devMode) require('electron-reload')(__dirname);
 
