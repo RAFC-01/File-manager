@@ -41,6 +41,7 @@ async function tryToLoadFiles(){
 }
 let G_lastSearchTime = 0;
 let G_currentSearchResults = [];
+let G_lastSearch = "";
 function clamp(val, min, max){
   return Math.max(min, Math.min(val, max));
 }
@@ -52,6 +53,7 @@ function clamp(val, min, max){
 function searchFiles(search = ""){
   search = search.toLowerCase();
   G_lastSearchTime = Date.now();
+  G_lastSearch = search;
   const startTime = performance.now();
   let list = [];
   let mode = 0;
@@ -171,9 +173,85 @@ async function findAllFiles(dir) {
   console.timeEnd('find files');
   console.log(`Total entries visited: ${currentLength}`);
 
-  await fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
+  // await fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
 }
+let multiFiles = [];
 
+async function findAllFilesmulti(dir = 'C:/') {
+  console.time('find files multi');
+  files = [];
+  let currentLength = 0;
+  let done = 0;
+  const concurrency = 10; 
+  const active = new Set(); // track currently running tasks
+
+  G_threadpool.loadWorkers(1, 'readFile.js');
+
+  // limiter(fn) will:
+  //  - if active.size < concurrency, immediately start fn()
+  //  - otherwise wait until any active task finishes (Promise.race), then start fn()
+  // It returns the Promise that represents fn().
+
+  async function checkDir(currentDir) {
+    if (currentDir.includes('C:\\Windows')) {
+        return
+    };
+
+    let entries;
+    try {
+      entries = await fs.readdir(currentDir, { withFileTypes: true });
+    } catch (err) {
+      // probably permission denied or some other I/O error—just skip
+      return;
+    }
+
+    currentLength += entries.length;
+    if (currentLength % 100 === 0) {
+      console.log(`Processed ${currentLength} entries…`);
+    }
+
+    let dirLength = 0;
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+          dirLength++;
+        }    
+    }
+
+    for (const entry of entries) {
+        files.push(entry);
+        if (entry.isDirectory()) {
+            const subdir = path.join(currentDir, entry.name);
+            // schedule checkDir(subdir) under our concurrency limiter
+            // await checkDir(subdir);
+            
+            const worker = G_threadpool.getFreeWorker();
+            worker.worker.postMessage(subdir);  
+
+            worker.worker.onmessage = async (e) => {
+              if (!e.data.path){
+                done++;
+              }else{
+                console.log('here');
+                await checkDir(e.data.path);
+                dirLength++;
+              }
+              if (done >= dirLength){
+                console.timeEnd('find files multi');
+              }
+              files = e.data;
+              // searchFiles(G_lastSearch)
+            }
+        }
+    }
+  }
+
+  await checkDir(dir)
+
+
+  console.log(`Total entries visited: ${currentLength}`);
+
+  // await fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
+}
 async function renderSearch(){
   // console.log(G_currentSearchResults);
 
@@ -280,18 +358,12 @@ function formatFileSize(bytes) {
   const size = bytes / Math.pow(1024, i);
   return `${size.toFixed(2)} ${sizes[i]}`;
 }
-const fastFolder = require('fast-folder-size');
-const { exec } = require('child_process');
-const { stdout } = require('process');
 window.onload = async () => {
-  await findAllFiles('C:/').catch(console.error);
+  await findAllFilesmulti('C:/').catch(console.error);
 
-  await tryToLoadFiles();
+  // await tryToLoadFiles();
   searchFiles("");
-  // fastFolder('C:\\', {}, (err, bytes) => {
-  //   if (err) console.log(err)
-  //   else console.log(formatFileSize(bytes), bytes)
-  // })
+
 }
 function escapeJsonString(str) {
   if (typeof str !== 'string') return str;
@@ -306,3 +378,62 @@ function escapeJsonString(str) {
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, (c) => // Escape control characters
       `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
+/**
+ * @typedef workerObj
+ * @property {number} i
+ * @property {boolean} isBusy
+ * @property {Worker} worker
+ */
+class ThreadPool{
+    constructor(){
+        this.isBusy = false;
+        /** @type {workerObj[]} */
+        this.currentWorkers = [];
+    }
+    loadWorkers(count = 1, fileName){
+        if (this.isBusy) return false;
+        this.isBusy = true;
+        for (let i = 0; i < count; i++){
+            this.currentWorkers.push({
+                i: i,
+                isBusy: false,
+                worker: new Worker(path.resolve(__dirname, 'workers', fileName), {type: 'module'})
+            })
+        }
+        return true;
+    }
+    terminateAll(){
+        this.isBusy = false;
+        for (let i = 0; i < this.currentWorkers.length; i++){
+            let w = this.currentWorkers[i];
+            w.worker.terminate();
+        }
+        this.currentWorkers = [];
+    }
+    getFreeWorker(){
+        for (let i = 0; i < this.currentWorkers.length; i++){
+            let w = this.currentWorkers[i];
+            if (!w.isBusy) return w;
+        }        
+        return false;
+    }
+    async waitForWorker(needsWorkder){
+        if (!needsWorkder) return false;
+        return new Promise((resolve) => {
+                let tries = 0;
+                const interval = setInterval(() => {
+                    const freeWorker = this.getFreeWorker();
+                    if (freeWorker) {
+                        clearInterval(interval);
+                        resolve(freeWorker);
+                    }
+                    tries++;
+                    if (tries > 1000000){
+                        clearInterval(interval);
+                        resolve(false);                
+                    }
+                }, 100); // Check every 100ms if a worker becomes free
+            });
+    }
+}
+const G_threadpool = new ThreadPool();

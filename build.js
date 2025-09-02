@@ -17,6 +17,7 @@ const createWindow = () => {
         // offscreen: true,
         nodeIntegration: true,
         contextIsolation: false,
+        nodeIntegrationInWorker: true,
       }  
     })
   
