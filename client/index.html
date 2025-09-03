@@ -12,19 +12,34 @@
         <div><img src="logo.png"></div>
     </div>
     <div id="content">
-        <div id="searchBar">
-            <input type="text" placeholder="Type to search" id="search" autocorrect="off" autocomplete="off" spellcheck="false"/>
-            <div id="searchInfo"></div>
+        <div id="main">
+            <div class="headLine">Ogólne</div>
+            <div id="graphs">
+                <div id="spaceDistribution" class="graph">
+                    <div class="headers"></div>
+                    <div id="graphLine">
+                        <div id="graphLineIn"></div>
+                    </div>
+                </div>
+                <div id="fileDistribution" class="graph"></div>
+            </div>
+            <div class="headLine">Twoje dyski</div>
         </div>
-        <div id="search_header">
-            <div id="nameHeader" class="headerSection">Name</div>
-            <div id="pathHeader" class="headerSection">Path</div>
-            <div id="sizeHeader"  class="headerSection">Size</div>
-            <div id="modHeader"  class="headerSection">Date Modified</div>
-        </div>
-        <div id="search_results">
-            <div id="spacer"></div>
-            <div id="visibleItems"></div>
+        <div id="quickSearch">  
+            <div id="searchBar">
+                <input type="text" placeholder="Type to search" id="search" autocorrect="off" autocomplete="off" spellcheck="false"/>
+                <div id="searchInfo"></div>
+            </div>
+            <div id="search_header">
+                <div id="nameHeader" class="headerSection">Name</div>
+                <div id="pathHeader" class="headerSection">Path</div>
+                <div id="sizeHeader"  class="headerSection">Size</div>
+                <div id="modHeader"  class="headerSection">Date Modified</div>
+            </div>
+            <div id="search_results">
+                <div id="spacer"></div>
+                <div id="visibleItems"></div>
+            </div>
         </div>
     </div>
     <canvas></canvas>

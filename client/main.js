@@ -2,7 +2,7 @@ const os = require('os');
 const {shell} = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
-const { console } = require('inspector');
+const driveList = require('drivelist');
 
 const searchText = document.getElementById('search');
 const searchInfo = document.getElementById('searchInfo');
@@ -359,11 +359,61 @@ function formatFileSize(bytes) {
   return `${size.toFixed(2)} ${sizes[i]}`;
 }
 window.onload = async () => {
-  await findAllFilesmulti('C:/').catch(console.error);
-
-  // await tryToLoadFiles();
+  // await findAllFilesmulti('C:/').catch(console.error);
+  await createMainGraps();
+  await tryToLoadFiles();
   searchFiles("");
 
+}
+async function createMainGraps(){
+  const drives = await driveList.list();
+
+  let driveMem = [];
+
+  let totalFree = 0;
+  let totalSpace = 0;
+
+  for (let i = 0; i < drives.length; i++){
+    let d = drives[i];
+    let drivePath = d.mountpoints[0].path;
+    let driveName = drivePath[0];
+
+    let { free } = await getDiskFreeSpace(drivePath);
+
+    totalSpace+=d.size;
+    totalFree+=free;
+
+    driveMem.push({
+      path: drivePath,
+      size: d.size,
+      free: free,
+      desc: d.description,
+      name: driveName
+    });
+  }
+  const graphLineDiv = document.getElementById('graphLineIn');
+  graphLineDiv.style.width = 100 - Math.floor(totalFree / totalSpace * 100) + '%';
+}
+function getFileType(extension) {
+  const fileTypes = {
+    code: ['.js', '.ts', '.py', '.rs', '.java', '.cpp', '.html', '.css', 'c', 'h', 'hpp', 'h', 'lua'],
+    executable: ['.exe', '.bin', '.sh', '.bat', '.dll'],
+    config: ['.json', '.yaml', '.ini', '.toml', '.env'],
+    text: ['.txt', '.md', '.log', '.csv'],
+  };
+  extension = extension.toLowerCase();
+  for (const [type, exts] of Object.entries(fileTypes)) {
+    if (exts.includes(extension)) return type;
+  }
+  return extension ? 'other' : 'unknown';
+}
+async function getDiskFreeSpace(dir) {
+  const stats = await fs.statfs(dir);
+  const freeBytes = stats.bfree * stats.bsize; 
+  const totalBytes = stats.blocks * stats.bsize;
+  const free = freeBytes; 
+  const total = totalBytes; 
+  return { free, total };
 }
 function escapeJsonString(str) {
   if (typeof str !== 'string') return str;
