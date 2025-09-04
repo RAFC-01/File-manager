@@ -4,6 +4,7 @@
     --fontColor: #707285;
     --borderColor: #323343;
     --niceBlue: #36a3ff;
+    --niceRed: #e9194e;
 }
 body{
     overflow: hidden;
@@ -133,7 +134,7 @@ canvas{
     display: none;
 }
 #main{
-    display: flex;
+    display: none;
     width: 100%;
     justify-content: center;
     align-items: center;
@@ -145,15 +146,17 @@ canvas{
     width: 90%;
     gap: 10px;
 }
-.graph{
-    width: 50%;
-    height: 200px;
+.smallWindow{
     border: 1px solid var(--borderColor);
     border-radius: 7px;
     background-color: var(--frontColor);
+}
+.graph{
+    width: 50%;
+    height: 150px;
     display: flex;
     padding: 10px;
-    justify-content: center;
+    align-items: center;
 }
 #graphLine{
     border-radius: 5px;
@@ -161,6 +164,7 @@ canvas{
     height: 25px;
     background-color: var(--fontColor);
     overflow: hidden;
+    display: flex;
 }
 #graphLineIn{
     background-color: var(--niceBlue);
@@ -172,4 +176,51 @@ canvas{
     color: white;
     padding: 20px 0px;
     font-weight: bold;
+    text-transform: uppercase;
+}
+.headers{
+    width: 90%;
+    padding: 10px 0px;
+    display: flex;
+    gap: 40px;
+}
+.headerSize{
+    font-size: 16px;
+    color: var(--fontColor);
+    font-weight: bold;
+}
+.headerValue{
+    font-size: 22px;
+    font-weight: bold;
+}
+#spaceDistribution{
+    display: flex;
+    flex-direction: column;
+    min-width: 500px;
+}
+#spaceLegend{
+    display: flex;
+    gap: 20px;
+    width: 90%;
+    padding: 20px 0px;
+}
+#fileDistribution{
+    min-width: 250px;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+#totalFiles{
+    font-size: 22px;
+    font-weight: bold;
+    width: 90%;
+}
+#distGrapth{
+    display: flex;
+    height: 100px;
+    gap: 5px;
+    position: relative;
+    width: 90%;
+    align-items: flex-end;
 }

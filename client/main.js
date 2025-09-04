@@ -31,6 +31,18 @@ const G_flags = {
   updateSearch: false
 };
 
+const G_icons = {
+  'code': {x: 0, y: 0, sizeX: 16, sizeY: 16},
+  'other': {x: 128, y: 0, sizeX: 16, sizeY: 16},
+  'photo': {x: 32, y: 0, sizeX: 16, sizeY: 16},
+  'config': {x: 16, y: 0, sizeX: 16, sizeY: 16},
+  'folder': {x: 48, y: 0, sizeX: 16, sizeY: 16},
+  'video': {x: 112, y: 0, sizeX: 16, sizeY: 16},
+  'executable': {x: 96, y: 0, sizeX: 16, sizeY: 16},
+  'text': {x: 64, y: 0, sizeX: 16, sizeY: 16},
+  'sound': {x: 80, y: 0, sizeX: 16, sizeY: 16},
+}
+
 async function tryToLoadFiles(){
   try {
     let data = await fs.readFile(path.join(savePath, 'saved_data.json'));
@@ -350,28 +362,219 @@ function escape(text){
   });
   return safeText;
 }
-function formatFileSize(bytes) {
-  if (!bytes) return false;
+async function prepareIcons(){
+  return new Promise(resolve => {
+    const styleElement = document.createElement('style');
+    
+    const image = new Image();
+    image.src = 'icons.png';
+  
+    image.onload = () => {
+      styleElement.textContent = `
+      .icon{
+        width: ${image.width}px;
+        height: ${image.height}px;
+        background-image: url('icons.png');
+        background-repeat: no-repeat;
+        background-size: cover;
+      }
+      `;
+
+      document.head.appendChild(styleElement);
+      resolve()
+    }
+  })
+}
+function makeUIicon(x, y, xSize, ySize){
+  const mainDiv = createDivElement({
+    width: xSize + 'px',
+    height: ySize + 'px',
+    flexShrink: '0',
+    overflow: 'hidden'
+  })
+  const backgroundDiv = createDivElement({
+    backgroundPositionX: -x + 'px',
+    backgroundPositionY: -y + 'px',
+  }, 'icon');
+
+  mainDiv.appendChild(backgroundDiv);
+
+  return mainDiv;
+}
+function formatFileSize(bytes, props = {}) {
+  if (bytes === undefined) return false;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (bytes === 0) return '0 B';
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   const size = bytes / Math.pow(1024, i);
-  return `${size.toFixed(2)} ${sizes[i]}`;
+  return `<span class="${props.valueClass || 'unset'}">${size.toFixed(2)}</span> <span class="${props.sizeClass || 'unset'}" >${sizes[i]}</span>`;
 }
 window.onload = async () => {
   // await findAllFilesmulti('C:/').catch(console.error);
-  await createMainGraps();
+  await prepareIcons();
   await tryToLoadFiles();
-  searchFiles("");
+  await createMainGraps();
+  document.getElementById('main').style.display = 'flex';
+  // searchFiles("");
 
 }
+/**
+ * Creates a div element with the specified styles.
+ * @param {Partial<CSSStyleDeclaration>} styles
+ * @returns {HTMLDivElement}
+ */
+function createDivElement(styles = {}, className, dataset = {}){
+    const div = document.createElement('div');
+    for (let i = 0; i < Object.keys(styles).length; i++){
+        let key = Object.keys(styles)[i];    
+        let value = Object.values(styles)[i];
+        
+        if (key == 'centerFlex'){
+            div.style['display'] = 'flex';
+            div.style['justifyContent'] = 'center';
+            div.style['alignItems'] = 'center';
+        }else{
+            div.style[key] = value;
+        }
+    }
+    if (className) div.className = className;
+    let datasetArr = Object.keys(dataset);
+    for (let i = 0; i < datasetArr.length; i++){
+        let key = datasetArr[i];
+        let value = dataset[key];
+        div.dataset[key] = value;
+
+    }
+
+    return div;
+}
+function createNameWithTitleDiv(title, value){
+  const mainDiv = createDivElement({
+    display: 'flex',
+    flexDirection: 'column',
+    width: 'fit-content'
+  });
+
+  const titleDiv = createDivElement({
+    color: 'var(--fontColor)'
+  });
+
+  const valueDiv = createDivElement({
+    color: 'white'
+  });
+  titleDiv.innerHTML = title;
+  valueDiv.innerHTML = value;
+
+  mainDiv.appendChild(titleDiv);
+  mainDiv.appendChild(valueDiv);
+
+  return {mainDiv, valueDiv};
+}
+function createLegendDot(color, name){
+  const mainDiv = createDivElement({
+    display: 'flex',
+    gap: '10px',
+    alignItems: 'center'
+  });
+
+  const dotDiv = createDivElement({
+    backgroundColor: color,
+    borderRadius: '50%',
+    width: '10px',
+    height: '10px',
+  });
+
+  const nameDiv = createDivElement({
+    color: 'var(--fontColor)'
+  });
+  nameDiv.innerHTML = name;
+
+  mainDiv.appendChild(dotDiv);
+  mainDiv.appendChild(nameDiv);
+  return mainDiv;
+}
+function createGraphBar(height, number, name, icon = {}){
+  const mainDiv = createDivElement({
+    display: 'flex',
+    flexDirection: 'column',
+    width: '30px',
+    height: '85%',
+    justifyContent: 'flex-end',
+  });
+  mainDiv.title = name;
+
+  const topIcon = makeUIicon(icon.x, icon.y, icon.sizeX, icon.sizeY);
+  topIcon.style.marginTop = '-18px'
+
+  const barDiv = createDivElement({
+    height: '100%',
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '2px'
+  });
+
+  const innerBar = createDivElement({
+    borderRadius: '5px',
+    height: height,
+    backgroundColor: 'var(--niceBlue)',
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center'
+  })
+  
+  barDiv.appendChild(innerBar);
+  innerBar.appendChild(topIcon);
+  
+  const numberDiv = createDivElement({
+    color: 'var(--fontColor)',
+    fontSize: '11px',
+    textAlign: 'center',
+    width: '100%'
+  })
+
+  numberDiv.innerHTML = number;
+
+  mainDiv.appendChild(barDiv);
+  mainDiv.appendChild(numberDiv);
+
+  return mainDiv;
+}
+function shortenNumber(num) {
+    if (typeof num !== 'number' || isNaN(num)) return '0';
+    
+    const absNum = Math.abs(num);
+    const sign = num < 0 ? '-' : '';
+    
+    if (absNum >= 1e9) {
+        return sign + (absNum / 1e9).toFixed(0).replace(/\.0$/, '') + 'B';
+    }
+    if (absNum >= 1e6) {
+        return sign + (absNum / 1e6).toFixed(0).replace(/\.0$/, '') + 'M';
+    }
+    if (absNum >= 1e3) {
+        return sign + (absNum / 1e3).toFixed(0).replace(/\.0$/, '') + 'K';
+    }
+    return sign + num.toString();
+}
 async function createMainGraps(){
+  const totalDiv = createNameWithTitleDiv('Cała pamięć', formatFileSize(0, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
+  const freeDiv = createNameWithTitleDiv('Wolna pamięć', formatFileSize(0, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
+  const headersDiv = document.querySelector('.headers');
+  const legendDiv = document.getElementById('spaceLegend');
+
+  headersDiv.appendChild(totalDiv.mainDiv);
+  headersDiv.appendChild(freeDiv.mainDiv);
   const drives = await driveList.list();
 
   let driveMem = [];
 
   let totalFree = 0;
   let totalSpace = 0;
+
+  const graphLineDiv = document.getElementById('graphLine');
 
   for (let i = 0; i < drives.length; i++){
     let d = drives[i];
@@ -390,16 +593,77 @@ async function createMainGraps(){
       desc: d.description,
       name: driveName
     });
+
   }
-  const graphLineDiv = document.getElementById('graphLineIn');
-  graphLineDiv.style.width = 100 - Math.floor(totalFree / totalSpace * 100) + '%';
+  const barColors =  ['var(--niceRed)', 'var(--niceBlue)'];
+  // i need totalSpace
+  for (let i = 0; i < driveMem.length; i++){
+    let d = driveMem[i];
+    const linePart = createDivElement({
+      width: Math.floor((d.size - d.free) / totalSpace * 1000) / 10 + '%',
+      backgroundColor: barColors[i % barColors.length],
+      height: '100%'
+    });
+
+    legendDiv.appendChild(createLegendDot(barColors[i % barColors.length], d.name));
+
+    graphLineDiv.appendChild(linePart);
+  }
+
+    legendDiv.appendChild(createLegendDot('var(--fontColor)', 'Wolne'));
+
+  totalDiv.valueDiv.innerHTML = formatFileSize(totalSpace, {sizeClass: 'headerSize', valueClass: 'headerValue'});
+  freeDiv.valueDiv.innerHTML = formatFileSize(totalFree, {sizeClass: 'headerSize', valueClass: 'headerValue'});
+
+  document.getElementById('diskAmmout').innerHTML = drives.length;
+
+
+  let types = {};
+
+  for (let i = 0; i < files.length; i++){
+    let fileName = files[i].name;
+    if (fileName[0] == '.') continue;
+    let type;
+    if (!fileName.includes('.')){
+      // probably a folder 
+      type = 'folder';
+    }else{
+      let ext = fileName.substring(fileName.lastIndexOf('.'), fileName.length);
+      
+      type = getFileType(ext);
+    }
+
+    if (!types[type]) types[type] = 0;
+    types[type]++;
+  }
+  document.getElementById('totalFiles').innerHTML = addCommas(files.length) + " <span style='font-size: 15px; font-weight: normal; color: var(--fontColor);'>Plików</span>";
+
+  const sortedTypes = Object.keys(types).sort((a, b) => types[b] - types[a]);
+
+  const distGrapthDiv = document.getElementById('distGrapth');
+
+  for (let i = 0; i < sortedTypes.length; i++){
+    const type = types[sortedTypes[i]];
+    const biggest = types[sortedTypes[0]];
+    
+    const procentage = type / biggest * 100;
+    const graphDiv = createGraphBar(procentage + '%', shortenNumber(type), addCommas(type) + ' ' + sortedTypes[i], G_icons[sortedTypes[i]]);
+
+    distGrapthDiv.appendChild(graphDiv);
+  }
+}
+function addCommas(number) {
+  return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 function getFileType(extension) {
   const fileTypes = {
-    code: ['.js', '.ts', '.py', '.rs', '.java', '.cpp', '.html', '.css', 'c', 'h', 'hpp', 'h', 'lua'],
+    code: ['.js', '.ts', '.py', '.rs', '.java', '.cpp', '.html', '.css', '.c', '.h', '.hpp', '.h', '.lua', '.odin', '.jai'],
     executable: ['.exe', '.bin', '.sh', '.bat', '.dll'],
-    config: ['.json', '.yaml', '.ini', '.toml', '.env'],
-    text: ['.txt', '.md', '.log', '.csv'],
+    config: ['.json', '.yaml', '.ini', '.toml', '.env', '.dat'],
+    text: ['.txt', '.md', '.log', '.csv', '.todo', '.pdf', '.doc', '.docx'],
+    photo: ['.png', '.jpg', '.webp', '.jpeg'],
+    video: ['.gif', '.mp4', '.mov', '.avi', '.webm'],
+    sound: ['.mp3', '.av', '.flac', '.aac', '.ogg']
   };
   extension = extension.toLowerCase();
   for (const [type, exts] of Object.entries(fileTypes)) {
