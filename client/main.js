@@ -1,11 +1,26 @@
 const os = require('os');
 const {shell} = require('electron');
 const fs = require('fs').promises;
+const fg = require('fast-glob');
 const path = require('path');
 const driveList = require('drivelist');
 
 const searchText = document.getElementById('search');
 const searchInfo = document.getElementById('searchInfo');
+
+const Database = require('better-sqlite3');
+const db = new Database('db/files.db');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    size INTEGER,
+    modified_at DATETIME,
+    type TEXT
+  );
+`);
 
 /**
  * @typedef file
@@ -107,7 +122,123 @@ function searchFiles(search = ""){
   G_currentSearchResults = list.sort((a, b) => b.score - a.score);
   renderSearch();
 }
+const BATCH_SIZE = 10000; // Adjust based on memory
+const ROOT_DIR = 'C:/'; // Test with smaller dir first
 
+async function getFileMetadata(filePath) {
+  try {
+    const stats = await fs.stat(filePath);
+    if (!stats.isFile()) return null; // Skip non-files
+    const name = path.basename(filePath);
+    const ext = path.extname(name).toLowerCase().slice(1);
+    return {
+      path: filePath,
+      name,
+      size: stats.size,
+      modified_at: stats.mtime.toISOString(),
+      type: ext || 'unknown',
+    };
+  } catch (err) {
+    console.error(`Error stat ${filePath}: ${err.message}`);
+    return null;
+  }
+}
+
+async function insertBatch(batch) {
+  if (batch.length === 0) return;
+
+  const insert = db.prepare(
+    'INSERT OR IGNORE INTO files (path, name, size, modified_at, type) VALUES (?, ?, ?, ?, ?)'
+  );
+  const transaction = db.transaction((items) => {
+    for (const item of items) {
+      insert.run(item.path, item.name, item.size, item.modified_at, item.type);
+    }
+  });
+
+  try {
+    transaction(batch);
+    console.log(`Inserted ${batch.length} files`);
+  } catch (err) {
+    console.error(`Batch insert error: ${err.message}`);
+  }
+}
+let skippedFiles = [];
+async function scanAndStore() {
+  console.time('Scan and Store');
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('DROP INDEX IF EXISTS idx_path; DROP INDEX IF EXISTS idx_name;');
+
+  try {
+    const files = fg.stream(['**/*'], {
+      cwd: ROOT_DIR,
+      absolute: true,
+      onlyFiles: true,
+      followSymbolicLinks: false,
+      suppressErrors: true, // Attempt to suppress EPERM errors
+      dot: true,
+    });
+
+    let batch = [];
+    let fileCount = 0;
+
+    await new Promise((resolve, reject) => {
+      files.on('data', async (filePath) => {
+        try {
+          const metadata = await getFileMetadata(filePath);
+          if (metadata) {
+            batch.push(metadata);
+            fileCount++;
+            if (batch.length >= BATCH_SIZE) {
+              await insertBatch(batch);
+              batch = [];
+              console.log(`Processed ${fileCount} files`);
+            }
+          }
+        } catch (err) {
+          skippedFiles.push({ path: filePath, error: err.message });
+          console.error(`File processing error for ${filePath}: ${err.message}`);
+        }
+      });
+
+      files.on('error', (err) => {
+        // Log stream errors without rejecting
+        skippedFiles.push({ path: err.path || 'unknown', error: err.message });
+        console.error(`Stream error: ${err.message}`);
+      });
+
+      files.on('end', async () => {
+        try {
+          await insertBatch(batch);
+          console.log(`Total files processed: ${fileCount}`);
+          console.log(`Skipped files/directories:`, skippedFiles);
+          resolve();
+        } catch (err) {
+          console.error(`Final batch error: ${err.message}`);
+          resolve(); // Resolve to avoid crashing
+        }
+      });
+
+      files.on('close', () => {
+        console.log('Stream closed');
+      });
+    });
+
+    // Recreate indexes
+    db.exec('CREATE INDEX idx_path ON files (path);');
+    db.exec('CREATE INDEX idx_name ON files (name);');
+    db.exec('ANALYZE; VACUUM;');
+  } catch (err) {
+    console.error(`Scan error: ${err.message}`);
+  }
+
+  console.timeEnd('Scan and Store');
+  // Log skipped files for user visibility
+  if (skippedFiles.length > 0) {
+    console.log(`Total skipped files/directories: ${skippedFiles.length}`);
+    console.log('Skipped details:', skippedFiles);
+  }
+}
 async function dirExists(path) {
   try {
     const stats = await fs.stat(path);
@@ -413,7 +544,7 @@ window.onload = async () => {
   // await findAllFilesmulti('C:/').catch(console.error);
   await prepareIcons();
   await tryToLoadFiles();
-  await createMainGraps();
+  await createMainGraphs();
   document.getElementById('main').style.display = 'flex';
   // searchFiles("");
 
@@ -559,11 +690,74 @@ function shortenNumber(num) {
     }
     return sign + num.toString();
 }
-async function createMainGraps(){
+function makeGraphInfo(info = {}, color){
+  const mainDiv = createDivElement({
+    width: '190px',
+    height: '190px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center'
+  }, 'smallWindow diskInfo');
+
+  const header = createDivElement({
+    width: '90%',
+    padding: '10px 0px'
+  });
+
+  const chartDiv = createDivElement({
+    width: '90%',
+    display: 'flex',
+    justifyContent: 'center'
+  });
+
+  const takenProcentage = (100 - info.free / info.size * 100).toFixed(2);
+
+  const pieChartDiv = createDivElement({
+    width: '100px',
+    height: '100px',
+    borderRadius: '50%',
+    background: `conic-gradient(${color} 0% ${takenProcentage}%, var(--fontColor) ${takenProcentage}% 100%)`,
+    centerFlex: 1
+  });
+
+  const pieChartCenter = createDivElement({
+    width: '70px',
+    height: '70px',
+    borderRadius: '50%',
+    backgroundColor: 'var(--frontColor)'
+  });
+
+  pieChartDiv.appendChild(pieChartCenter);
+
+  chartDiv.appendChild(pieChartDiv);
+
+  const brandDiv = createDivElement({
+    width: '90%',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+    overflow: 'hidden',
+    padding: '5px 0px',
+    marginTop: '10px',
+    borderTop: '1px solid var(--borderColor)'
+  });
+
+
+  header.innerHTML = `${info.name} - <span style='font-size: 13px; color: ${color};'>${formatFileSize(info.free)} / ${formatFileSize(info.size)}</span>`;
+  brandDiv.innerHTML = info.desc || 'nieznana marka';
+  brandDiv.title = info.desc;
+
+  mainDiv.appendChild(header);
+  mainDiv.appendChild(chartDiv);
+  mainDiv.appendChild(brandDiv);
+
+  return mainDiv;
+}
+async function createMainGraphs(){
   const totalDiv = createNameWithTitleDiv('Cała pamięć', formatFileSize(0, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
   const freeDiv = createNameWithTitleDiv('Wolna pamięć', formatFileSize(0, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
   const headersDiv = document.querySelector('.headers');
   const legendDiv = document.getElementById('spaceLegend');
+  const drivesDiv = document.getElementById('drives');
 
   headersDiv.appendChild(totalDiv.mainDiv);
   headersDiv.appendChild(freeDiv.mainDiv);
@@ -608,6 +802,11 @@ async function createMainGraps(){
     legendDiv.appendChild(createLegendDot(barColors[i % barColors.length], d.name));
 
     graphLineDiv.appendChild(linePart);
+
+    // drives info
+    const drive = makeGraphInfo(d, barColors[i % barColors.length]);
+
+    drivesDiv.appendChild(drive);
   }
 
     legendDiv.appendChild(createLegendDot('var(--fontColor)', 'Wolne'));

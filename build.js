@@ -3,7 +3,7 @@ const path = require('path');
 
 const devMode = true;
 
-if (devMode) require('electron-reload')(__dirname);
+// if (devMode) require('electron-reload')(__dirname, {ignored: [path.join(__dirname, '*.db')]});
 
 const mainPath = path.join(__dirname, 'client', 'index.html');
 

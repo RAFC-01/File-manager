@@ -16,7 +16,7 @@ body{
 }
 #background{
     position: fixed;
-    opacity: 0.05;
+    opacity: 0.01;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -223,4 +223,18 @@ canvas{
     position: relative;
     width: 90%;
     align-items: flex-end;
+}
+#drives{
+    display: flex;
+    gap: 10px;
+    width: 90%;
+}
+.diskInfo{
+    transition: 0.3s;
+    outline: unset;
+}
+.diskInfo:hover{
+    border-color: var(--niceBlue);
+    transition: 0.3s;
+    cursor: pointer;
 }

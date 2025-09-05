@@ -4,22 +4,27 @@
   "description": "",
   "main": "build.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "alea": "^1.0.1",
+    "better-sqlite3": "^12.2.0",
     "drivelist": "^12.0.2",
-    "electron": "^30.0.2",
+    "electron": "^38.0.0",
+    "electron-rebuild": "^3.2.9",
     "fast-folder-size": "^2.4.0",
     "fast-glob": "^3.3.3",
     "get-folder-size": "^5.0.0",
     "p-limit": "^6.2.0",
+    "robotjs": "^0.6.0",
     "simplex-noise": "^4.0.1"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "electron-reload": "^2.0.0-alpha.1"
   }
 }
