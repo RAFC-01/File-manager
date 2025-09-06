@@ -6,7 +6,7 @@ const files = [];
 onmessage = async (e) => {
     let nestedTimes = 0;
     const checkDir = async (currentDir) => {
-        if (currentDir.includes('C:\\Windows') || currentDir.includes('node_modules')) {
+        if (currentDir.includes('C:\\Windows')) {
             return
         };
     
@@ -26,11 +26,7 @@ onmessage = async (e) => {
         if (currentLength % 100 === 0) {
             // console.log(`Processed ${currentLength} entries…`);
         }
-    
-        if (currentDir == (process.env.APPDATA || path.join(os.homedir(), 'AppData'))){
-            console.log('appData !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        }
-    
+        
         // if (currentDir == 'C:\\Users\\Admin') {
         //     let len = await fs.readdir(currentDir, { withFileTypes: true });
         //     postMessage({path: currentDir, len: len})
@@ -38,9 +34,9 @@ onmessage = async (e) => {
         // }
 
         for (const entry of entries) {
+            const subdir = path.join(currentDir, entry.name);
             files.push(entry);
             if (entry.isDirectory()) {
-                const subdir = path.join(currentDir, entry.name);
                 await checkDir(subdir);
             }
         }

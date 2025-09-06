@@ -238,3 +238,12 @@ canvas{
     transition: 0.3s;
     cursor: pointer;
 }
+#singleLocationView{
+    display: none;
+    width: 100%;
+    align-items: center;
+    flex-direction: column;
+}
+#singleViewContent{
+    width: 90%;
+}

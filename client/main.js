@@ -34,7 +34,9 @@ db.exec(`
 let files = [];
 
 const APPDATA = getAppData();
-const APPNAME = 'FileManager'
+const APPNAME = 'FileManager';
+
+let currentLocation = 'main'; // id of current location
 
 const savePath = path.join(APPDATA, APPNAME);
 
@@ -319,8 +321,12 @@ async function findAllFiles(dir) {
   // await fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
 }
 let multiFiles = [];
-
-async function findAllFilesmulti(dir = 'C:/') {
+function makeSureFileExists(path){
+    if (!fs.existsSync(path)){
+        fs.writeFileSync(path, '[]');
+    }    
+}
+async function findAllFilesmulti(dir = 'D:/') {
   console.time('find files multi');
   files = [];
   let currentLength = 0;
@@ -548,6 +554,7 @@ window.onload = async () => {
   document.getElementById('main').style.display = 'flex';
   // searchFiles("");
 
+  // goToSingleView("C - samsung");
 }
 /**
  * Creates a div element with the specified styles.
@@ -763,6 +770,8 @@ async function createMainGraphs(){
   headersDiv.appendChild(freeDiv.mainDiv);
   const drives = await driveList.list();
 
+  console.log(drives);
+
   let driveMem = [];
 
   let totalFree = 0;
@@ -805,6 +814,12 @@ async function createMainGraphs(){
 
     // drives info
     const drive = makeGraphInfo(d, barColors[i % barColors.length]);
+
+    d.color = barColors[i % barColors.length];
+
+    drive.addEventListener('click', () => {
+      goToSingleView(d.name + ' - ' + d.desc, d);
+    })
 
     drivesDiv.appendChild(drive);
   }
@@ -933,20 +948,87 @@ class ThreadPool{
     async waitForWorker(needsWorkder){
         if (!needsWorkder) return false;
         return new Promise((resolve) => {
-                let tries = 0;
-                const interval = setInterval(() => {
-                    const freeWorker = this.getFreeWorker();
-                    if (freeWorker) {
-                        clearInterval(interval);
-                        resolve(freeWorker);
-                    }
-                    tries++;
-                    if (tries > 1000000){
-                        clearInterval(interval);
-                        resolve(false);                
-                    }
-                }, 100); // Check every 100ms if a worker becomes free
-            });
+          let tries = 0;
+          const interval = setInterval(() => {
+              const freeWorker = this.getFreeWorker();
+              if (freeWorker) {
+                  clearInterval(interval);
+                  resolve(freeWorker);
+              }
+              tries++;
+              if (tries > 10000){
+                  clearInterval(interval);
+                  resolve(false);                
+              }
+          }, 100); // Check every 100ms if a worker becomes free
+        });
     }
 }
 const G_threadpool = new ThreadPool();
+
+async function goToSingleView(name, data = {}){
+  document.getElementById(currentLocation).style.display = 'none';
+  document.getElementById('singleLocationView').style.display = 'flex';
+  const content = document.getElementById('singleViewContent');
+  content.innerHTML = '';
+
+  
+  currentLocation = 'singleLocationView';
+  
+  const header = createDivElement({
+
+  }, 'headLine')
+  
+  header.innerHTML = name || "";
+  const diskInfoDiv = createDivElement({
+    minWidth: '400px',
+    width: '80%',
+    maxWidth: '1000px',
+    height: '150px',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '10px'
+  }, 'smallWindow');
+
+  const takenProcentage = (100 - data.free / data.size * 100).toFixed(2);
+
+  let color = data.color;
+
+  const pieChartDiv = createDivElement({
+    width: '100px',
+    height: '100px',
+    borderRadius: '50%',
+    background: `conic-gradient(${color} 0% ${takenProcentage}%, var(--fontColor) ${takenProcentage}% 100%)`,
+    centerFlex: 1,
+    marginLeft: '10px'
+  });
+
+  const pieChartCenter = createDivElement({
+    width: '70px',
+    height: '70px',
+    borderRadius: '50%',
+    backgroundColor: 'var(--frontColor)'
+  });
+
+  pieChartDiv.appendChild(pieChartCenter);
+
+  content.appendChild(header);
+  diskInfoDiv.appendChild(pieChartDiv);
+  content.appendChild(diskInfoDiv);
+
+  // stats left
+  const statsLeftDiv = createDivElement({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginLeft: '20px'
+  });
+
+  const freeSpace = createNameWithTitleDiv('Wolne', formatFileSize(data.free, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
+  const overallSpace = createNameWithTitleDiv(`<span style="color: ${color}">Zajęte<span>`, formatFileSize(data.size - data.free, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
+
+  statsLeftDiv.appendChild(freeSpace.mainDiv);
+  statsLeftDiv.appendChild(overallSpace.mainDiv);
+
+  diskInfoDiv.appendChild(statsLeftDiv);
+}
