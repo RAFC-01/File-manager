@@ -960,7 +960,7 @@ class ThreadPool{
                   clearInterval(interval);
                   resolve(false);                
               }
-          }, 100); // Check every 100ms if a worker becomes free
+          }, 100);
         });
     }
 }
