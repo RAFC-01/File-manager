@@ -1,10 +1,12 @@
 :root{
     --frontColor: #22222d;
+    --higtLight: #2c2c3a;
     --backColor: #1c1d26;
     --fontColor: #707285;
     --borderColor: #323343;
     --niceBlue: #36a3ff;
     --niceRed: #e9194e;
+    --niceYellow: #ff8c00;
 }
 body{
     overflow: hidden;
@@ -246,4 +248,62 @@ canvas{
 }
 #singleViewContent{
     width: 90%;
+}
+#nav{
+    border-bottom: 1px solid var(--borderColor);
+    height: 50px;
+    display: flex;
+    align-items: center;
+}
+#navButtons{
+    display: flex;
+    margin-left: 10px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+#forwardArrow{
+    scale: -1;
+}
+.navArrow{
+    background-image: url("arrow.png");
+    width: 16px;
+    height: 16px;
+    border: 10px solid var(--backColor);
+    background-size: cover;
+    image-rendering: pixelated;
+    transition: 0.2s;
+    opacity: 0.5;
+}
+.active{
+    opacity: 1;
+}
+.navArrow.active:hover{
+    background-color: var(--higtLight);
+    border-color: var(--higtLight);
+    transition: 0.2s;
+    cursor: pointer;
+}
+.UI_button:hover{
+    filter: brightness(1.1);
+    transition: 0.3s;
+}
+#loadingScreen{
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    z-index: 1;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+#loadingWindow{
+    width: 400px;
+    height: 300px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--frontColor);
+    border: 2px solid var(--borderColor);
+    border-radius: 15px;
+    font-size: 25px;
 }

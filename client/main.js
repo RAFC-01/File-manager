@@ -8,19 +8,12 @@ const driveList = require('drivelist');
 const searchText = document.getElementById('search');
 const searchInfo = document.getElementById('searchInfo');
 
-const Database = require('better-sqlite3');
-const db = new Database('db/files.db');
+const options = {
+  ignoredPaths: ['C:\\Windows', '$Recycle.Bin']
+}
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    path TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    size INTEGER,
-    modified_at DATETIME,
-    type TEXT
-  );
-`);
+const G_navList = [];
+let currentLocationIndex = 0;
 
 /**
  * @typedef file
@@ -44,8 +37,42 @@ if (!dirExists(savePath)){
   fs.mkdir(savePath);
 }
 
+let isLoading = false;
+let loadingDots = 0;
+
+const loadingScreenDiv = document.getElementById('loadingScreen');
+const loadingScreenText = document.getElementById('loadingText');
+
+
+let G_lastUpdateTime = Date.now();
+function updateLoadingText(){
+  if (!isLoading) return;
+
+  if (Date.now() - G_lastUpdateTime < 200) return; // slow down to 20 fps
+
+  const dots = '...';
+
+  loadingDots--;
+
+  loadingDots = loadingDots % 3;
+
+  loadingScreenText.innerText = 'Loading' + dots.slice(loadingDots, dots.length);
+  G_lastUpdateTime = Date.now();
+}
+
+function startLoading(){
+  isLoading = true;
+  loadingScreenDiv.style.display = 'flex';
+}
+
+function stopLoading(){
+  isLoading = false;
+  loadingScreenDiv.style.display = 'none';
+}
+
 const G_flags = {
-  updateSearch: false
+  updateSearch: false,
+  mainPageReady: false
 };
 
 const G_icons = {
@@ -61,9 +88,11 @@ const G_icons = {
 }
 
 async function tryToLoadFiles(){
+  startLoading();
   try {
     let data = await fs.readFile(path.join(savePath, 'saved_data.json'));
     files = JSON.parse(data);
+    stopLoading();
   } catch (error) {
     console.error(error)
   }
@@ -326,7 +355,7 @@ function makeSureFileExists(path){
         fs.writeFileSync(path, '[]');
     }    
 }
-async function findAllFilesmulti(dir = 'D:/') {
+async function findAllFilesmulti(dir = ':/') {
   console.time('find files multi');
   files = [];
   let currentLength = 0;
@@ -538,6 +567,33 @@ function makeUIicon(x, y, xSize, ySize){
 
   return mainDiv;
 }
+const navBack = document.getElementById('backArrow');
+const navForward = document.getElementById('forwardArrow');
+
+navBack.addEventListener('mousedown', () => {
+  if (!navBack.classList.contains('active')) return;
+  currentLocationIndex -= 1;
+
+  navigateTo(G_navList[currentLocationIndex]);
+
+});
+
+navForward.addEventListener('mousedown', () => {
+  if (!navForward.classList.contains('active')) return;
+  currentLocationIndex += 1;
+
+  navigateTo(G_navList[currentLocationIndex]);
+  
+});
+
+function updateNavBtns(){
+
+  if (currentLocationIndex == 0) navBack.classList.remove('active');
+  else navBack.classList.add('active');
+
+  if (currentLocationIndex == G_navList.length - 1) navForward.classList.remove('active');
+  else navForward.classList.add('active');
+}
 function formatFileSize(bytes, props = {}) {
   if (bytes === undefined) return false;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -549,12 +605,25 @@ function formatFileSize(bytes, props = {}) {
 window.onload = async () => {
   // await findAllFilesmulti('C:/').catch(console.error);
   await prepareIcons();
+  // await createMainGraphs();
+  const testDrive = {
+    "path": "C:\\",
+    "size": 256060514304,
+    "free": 6553714688,
+    "desc": "SAMSUNG MZVLB256HAHQ-000H1",
+    "name": "C",
+    "color": "var(--niceRed)"
+  }
+  
+  await goToSingleView(testDrive.name + ' - ' + testDrive.desc, testDrive);
   await tryToLoadFiles();
-  await createMainGraphs();
-  document.getElementById('main').style.display = 'flex';
   // searchFiles("");
 
   // goToSingleView("C - samsung");
+  setInterval(() => {
+    updateNavBtns();
+    updateLoadingText();
+  },100); // 10 fps
 }
 /**
  * Creates a div element with the specified styles.
@@ -759,7 +828,33 @@ function makeGraphInfo(info = {}, color){
 
   return mainDiv;
 }
+function changeLocation(old, _new){
+  document.getElementById(old).style.display = 'none';
+  document.getElementById(_new).style.display = 'flex';
+
+  currentLocation = _new;
+}
+function navigateTo(nav){
+  if (nav.name == "main") goToMain(true);
+  if (nav.name == "singleView"){
+    goToSingleView(nav.viewName, nav.viewData, true);
+  }
+}
+function addToNavList(obj = {}){
+  // cut until current location
+  G_navList.splice(currentLocationIndex+1, G_navList.length);
+  G_navList.push(obj);
+  currentLocationIndex = G_navList.length - 1;  
+}
+function goToMain(isNav){
+  if (!G_flags.mainPageReady) return;
+  changeLocation(currentLocation, "main");
+  if (!isNav) {
+    addToNavList({name: 'main'});
+  }
+}
 async function createMainGraphs(){
+  document.getElementById('main').style.display = 'flex';
   const totalDiv = createNameWithTitleDiv('Cała pamięć', formatFileSize(0, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
   const freeDiv = createNameWithTitleDiv('Wolna pamięć', formatFileSize(0, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
   const headersDiv = document.querySelector('.headers');
@@ -865,6 +960,11 @@ async function createMainGraphs(){
 
     distGrapthDiv.appendChild(graphDiv);
   }
+  G_flags.mainPageReady = true;
+  addToNavList({name: 'main'})
+
+  console.log(driveMem[0])
+
 }
 function addCommas(number) {
   return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -966,7 +1066,7 @@ class ThreadPool{
 }
 const G_threadpool = new ThreadPool();
 
-async function goToSingleView(name, data = {}){
+async function goToSingleView(name, data = {}, isNav){
   document.getElementById(currentLocation).style.display = 'none';
   document.getElementById('singleLocationView').style.display = 'flex';
   const content = document.getElementById('singleViewContent');
@@ -981,8 +1081,7 @@ async function goToSingleView(name, data = {}){
   
   header.innerHTML = name || "";
   const diskInfoDiv = createDivElement({
-    minWidth: '400px',
-    width: '80%',
+    minWidth: '580px',
     maxWidth: '1000px',
     height: '150px',
     display: 'flex',
@@ -991,6 +1090,7 @@ async function goToSingleView(name, data = {}){
   }, 'smallWindow');
 
   const takenProcentage = (100 - data.free / data.size * 100).toFixed(2);
+  const freeProcentage = (100 - takenProcentage).toFixed(2);
 
   let color = data.color;
 
@@ -1000,7 +1100,8 @@ async function goToSingleView(name, data = {}){
     borderRadius: '50%',
     background: `conic-gradient(${color} 0% ${takenProcentage}%, var(--fontColor) ${takenProcentage}% 100%)`,
     centerFlex: 1,
-    marginLeft: '10px'
+    marginLeft: '10px',
+    flexShrink: '0'
   });
 
   const pieChartCenter = createDivElement({
@@ -1021,7 +1122,8 @@ async function goToSingleView(name, data = {}){
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
-    marginLeft: '20px'
+    marginLeft: '20px',
+    flexShrink: '0'
   });
 
   const freeSpace = createNameWithTitleDiv('Wolne', formatFileSize(data.free, {sizeClass: 'headerSize', valueClass: 'headerValue'}));
@@ -1030,5 +1132,124 @@ async function goToSingleView(name, data = {}){
   statsLeftDiv.appendChild(freeSpace.mainDiv);
   statsLeftDiv.appendChild(overallSpace.mainDiv);
 
+  const statsRightDiv = createDivElement({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginLeft: '20px',
+    height: '100%',
+    width: '100%',
+    alignItems: 'flex-end'
+  });
+
+  const warningsDiv = createDivElement({
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '5px'
+  });
+
+
+  const warnings = [
+    {
+      condition: freeProcentage < 5,
+      warningMessage: 'Mało miejsca',
+      title: 'Mniej niż 5% wolnego miejsca!'
+    },
+  ]
+
+  for (let i = 0; i < warnings.length; i++){
+    if (warnings[i].condition){
+      const warningDiv = createDivElement({
+        width: 'fit-content',
+        display: 'flex',
+        gap: '6px',
+        alignItems: 'center',
+        color: 'var(--fontColor)',
+        border: '2px solid var(--fontColor)',
+        backgroundColor: 'var(--backColor)',
+        borderRadius: '7px',
+        padding: '4px 10px',
+        fontSize: '14px',
+        userSelect: 'none'
+      });
+
+      warningDiv.title = warnings[i].title;
+
+      const icon = makeUIicon(144, 0, 16, 16);
+      icon.style.marginTop = '4px';
+      warningDiv.appendChild(icon);
+      warningDiv.innerHTML += warnings[i].warningMessage;
+
+
+      warningsDiv.appendChild(warningDiv);
+      
+    }
+  }
+  statsRightDiv.appendChild(warningsDiv);
+
+  const bottomButtonsDiv = createDivElement({
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+    gap: '6px'
+  });
+
+
+  const fileSpaceDistribution = makeUIButton('Statystyki Plików', '150px', '30px', 'var(--niceYellow)');
+  const findDuplicatesBtn = makeUIButton('Szukaj Duplikatów', '150px', '30px');
+
+  bottomButtonsDiv.appendChild(fileSpaceDistribution);
+  bottomButtonsDiv.appendChild(findDuplicatesBtn);
+
+  statsRightDiv.appendChild(bottomButtonsDiv);
+
   diskInfoDiv.appendChild(statsLeftDiv);
+  diskInfoDiv.appendChild(statsRightDiv);
+
+  if (!isNav){
+    addToNavList({name: 'singleView', viewName: name, viewData: data});
+  }
+}
+function makeUIButton(value, width, height, color = 'var(--niceBlue)'){
+  const mainDiv = createDivElement({
+    centerFlex: 1,
+    width: width,
+    height: height,
+    backgroundColor: color,
+    borderRadius: '7px',
+    paddingBottom: '1px',
+    cursor: 'pointer'
+  }, 'UI_button');
+
+  const textDiv = createDivElement({
+    fontWeight: '500'
+  });
+
+  textDiv.innerHTML = value;
+
+  mainDiv.appendChild(textDiv);
+
+  return mainDiv;
+}
+function fileScanPath(filePath = 'C:/'){
+  files = [];
+  let currentLength = 0;
+  let done = 0;
+
+  const worker = new Worker(path.resolve(__dirname, 'workers', 'getAllDirInfo.js'), {type: 'module'})
+
+  worker.postMessage({path: filePath, ignored: options.ignoredPaths});
+
+  console.time('read size');
+
+  worker.onmessage = async (e) => {
+    console.log(e.data);
+
+    // only save as first char of the disk path for now
+    await fs.writeFile(path.join(savePath, `wholeData_${filePath[0]}.json`), JSON.stringify(e.data));
+
+    console.timeEnd('read size');
+  }
 }
