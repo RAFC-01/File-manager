@@ -1196,6 +1196,44 @@ async function goToSingleView(name, data = {}, isNav){
     gap: '6px'
   });
 
+  /**
+   * 
+   * @param {Array<{path: string, size: number, isFile: boolean}>} arr 
+   * @returns 
+   */
+  const getDuplicates = (arr = []) => {
+    const data = {};
+
+    for (let i = 0; i < arr.length; i++){
+      if (arr[i].isFile) continue;
+
+      const name = path.basename(arr[i].path);
+
+      data[name] === undefined ? data[name] = 1 : data[name]++;
+    }
+
+    const sorted = Object.keys(data).sort((a, b) => data[b] - data[a]); 
+
+    const topAmmArr = [];
+
+    const topAmm = 64 > sorted.length ? sorted.length : 64;
+
+    for (let i = 0; i < topAmm; i++){
+      topAmmArr.push({
+        name: sorted[i],
+        amm: data[sorted[i]]
+      })
+    }
+
+    return topAmmArr;
+  }
+
+  const handleLocationData = (data) => {
+    const sorted = data.sort((a, b) => b.size - a.size);
+    console.log(sorted)
+    console.log(getDuplicates(sorted))
+  }
+
 
   const fileSpaceDistribution = makeUIButton('Statystyki Plików', '150px', '30px', 'var(--niceYellow)');
   const findDuplicatesBtn = makeUIButton('Szukaj Duplikatów', '150px', '30px');
@@ -1207,6 +1245,17 @@ async function goToSingleView(name, data = {}, isNav){
 
   diskInfoDiv.appendChild(statsLeftDiv);
   diskInfoDiv.appendChild(statsRightDiv);
+
+
+  // try to get old (cached) Data
+  try{
+    startLoading();
+    const oldData = await fs.readFile(path.join(savePath, `wholeData_${data.path[0]}.json`));
+    handleLocationData(JSON.parse(oldData))
+    stopLoading();
+  }catch(e){
+    console.error(e);
+  }
 
   if (!isNav){
     addToNavList({name: 'singleView', viewName: name, viewData: data});
