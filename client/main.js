@@ -1,6 +1,6 @@
 const os = require('os');
 const {shell} = require('electron');
-const fs = require('fs').promises;
+const fs = require('fs');
 const fg = require('fast-glob');
 const path = require('path');
 const driveList = require('drivelist');
@@ -29,6 +29,8 @@ let files = [];
 const APPDATA = getAppData();
 const APPNAME = 'FileManager';
 
+const FEW_MINUTES_TEXT = "To może potrwać kilka minut!";
+
 let currentLocation = 'main'; // id of current location
 
 const savePath = path.join(APPDATA, APPNAME);
@@ -42,7 +44,7 @@ let loadingDots = 0;
 
 const loadingScreenDiv = document.getElementById('loadingScreen');
 const loadingScreenText = document.getElementById('loadingText');
-
+const loadingScreenSubText = document.getElementById('loadingSubText');
 
 let G_lastUpdateTime = Date.now();
 function updateLoadingText(){
@@ -56,13 +58,14 @@ function updateLoadingText(){
 
   loadingDots = loadingDots % 3;
 
-  loadingScreenText.innerText = 'Loading' + dots.slice(loadingDots, dots.length);
+  loadingScreenText.innerText = 'Ładowanie' + dots.slice(loadingDots, dots.length);
   G_lastUpdateTime = Date.now();
 }
 
-function startLoading(){
+function startLoading(subtext = ""){
   isLoading = true;
   loadingScreenDiv.style.display = 'flex';
+  loadingScreenSubText.innerHTML = subtext;
 }
 
 function stopLoading(){
@@ -90,8 +93,14 @@ const G_icons = {
 async function tryToLoadFiles(){
   startLoading();
   try {
-    let data = await fs.readFile(path.join(savePath, 'saved_data.json'));
-    files = JSON.parse(data);
+    const filePath = path.join(savePath, 'saved_data.json');
+    if(fs.existsSync(filePath)){
+      let data = await fs.promises.readFile(filePath);
+      files = JSON.parse(data);
+    }else{
+      loadingScreenSubText.innerHTML = FEW_MINUTES_TEXT;
+      await findAllFilesmulti('C:/').catch(console.error);
+    }
     stopLoading();
   } catch (error) {
     console.error(error)
@@ -158,7 +167,7 @@ const ROOT_DIR = 'C:/'; // Test with smaller dir first
 
 async function getFileMetadata(filePath) {
   try {
-    const stats = await fs.stat(filePath);
+    const stats = await fs.promises.stat(filePath);
     if (!stats.isFile()) return null; // Skip non-files
     const name = path.basename(filePath);
     const ext = path.extname(name).toLowerCase().slice(1);
@@ -272,7 +281,7 @@ async function scanAndStore() {
 }
 async function dirExists(path) {
   try {
-    const stats = await fs.stat(path);
+    const stats = await fs.promises.stat(path);
     return stats.isDirectory();
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -319,7 +328,7 @@ async function findAllFiles(dir) {
 
     let entries;
     try {
-      entries = await fs.readdir(currentDir, { withFileTypes: true });
+      entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
     } catch (err) {
       // probably permission denied or some other I/O error—just skip
       return;
@@ -360,8 +369,6 @@ async function findAllFilesmulti(dir = ':/') {
   files = [];
   let currentLength = 0;
   let done = 0;
-  const concurrency = 10; 
-  const active = new Set(); // track currently running tasks
 
   G_threadpool.loadWorkers(1, 'readFile.js');
 
@@ -369,66 +376,70 @@ async function findAllFilesmulti(dir = ':/') {
   //  - if active.size < concurrency, immediately start fn()
   //  - otherwise wait until any active task finishes (Promise.race), then start fn()
   // It returns the Promise that represents fn().
+  return new Promise(async (resolve) => {
 
-  async function checkDir(currentDir) {
-    if (currentDir.includes('C:\\Windows')) {
-        return
-    };
+    async function checkDir(currentDir) {
+      if (currentDir.includes('C:\\Windows')) {
+          return
+      };
 
-    let entries;
-    try {
-      entries = await fs.readdir(currentDir, { withFileTypes: true });
-    } catch (err) {
-      // probably permission denied or some other I/O error—just skip
-      return;
-    }
 
-    currentLength += entries.length;
-    if (currentLength % 100 === 0) {
-      console.log(`Processed ${currentLength} entries…`);
-    }
-
-    let dirLength = 0;
-    for (const entry of entries) {
-        if (entry.isDirectory()) {
-          dirLength++;
-        }    
-    }
-
-    for (const entry of entries) {
-        files.push(entry);
-        if (entry.isDirectory()) {
-            const subdir = path.join(currentDir, entry.name);
-            // schedule checkDir(subdir) under our concurrency limiter
-            // await checkDir(subdir);
-            
-            const worker = G_threadpool.getFreeWorker();
-            worker.worker.postMessage(subdir);  
-
-            worker.worker.onmessage = async (e) => {
-              if (!e.data.path){
-                done++;
-              }else{
-                console.log('here');
-                await checkDir(e.data.path);
-                dirLength++;
+      let entries;
+      try {
+        entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+      } catch (err) {
+        // probably permission denied or some other I/O error—just skip
+        return;
+      }
+  
+      currentLength += entries.length;
+      if (currentLength % 100 === 0) {
+        console.log(`Processed ${currentLength} entries…`);
+      }
+  
+      let dirLength = 0;
+      for (const entry of entries) {
+          if (entry.isDirectory()) {
+            dirLength++;
+          }    
+      }
+  
+      for (const entry of entries) {
+          files.push(entry);
+          if (entry.isDirectory()) {
+              const subdir = path.join(currentDir, entry.name);
+              // schedule checkDir(subdir) under our concurrency limiter
+              // await checkDir(subdir);
+              
+              const worker = G_threadpool.getFreeWorker();
+              worker.worker.postMessage(subdir);  
+  
+              worker.worker.onmessage = async (e) => {
+                if (!e.data.path){
+                  done++;
+                }else{
+                  console.log('here');
+                  await checkDir(e.data.path);
+                  dirLength++;
+                }
+                files = e.data;
+                if (done >= dirLength){
+                  console.timeEnd('find files multi');
+                  await fs.promises.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
+                  resolve();
+                }
+                // searchFiles(G_lastSearch)
               }
-              if (done >= dirLength){
-                console.timeEnd('find files multi');
-              }
-              files = e.data;
-              // searchFiles(G_lastSearch)
-            }
+          }
         }
-    }
-  }
+      } 
+  
+      await checkDir(dir)
 
-  await checkDir(dir)
+      console.log(`Total entries visited: ${currentLength}`);
+    })
 
 
-  console.log(`Total entries visited: ${currentLength}`);
-
-  // await fs.writeFile(path.join(savePath, 'saved_data.json'), JSON.stringify(files));
 }
 async function renderSearch(){
   // console.log(G_currentSearchResults);
@@ -450,7 +461,7 @@ async function renderSearch(){
   for (let i = startIdx; i < endIdx; i++){
     const item = G_currentSearchResults[i].file;
     try{
-      if (!item.stat) item.stat = await fs.stat(path.join(item.path, item.name));
+      if (!item.stat) item.stat = await fs.promises.stat(path.join(item.path, item.name));
     }catch(err){
       // console.log(err);
     }
@@ -605,19 +616,19 @@ function formatFileSize(bytes, props = {}) {
 window.onload = async () => {
   // await findAllFilesmulti('C:/').catch(console.error);
   await prepareIcons();
-  // await createMainGraphs();
-  const testDrive = {
-    "path": "C:\\",
-    "size": 256060514304,
-    "free": 6553714688,
-    "desc": "SAMSUNG MZVLB256HAHQ-000H1",
-    "name": "C",
-    "color": "var(--niceRed)"
-  }
-  
-  await goToSingleView(testDrive.name + ' - ' + testDrive.desc, testDrive);
   await tryToLoadFiles();
-  // searchFiles("");
+  await createMainGraphs();
+  // const testDrive = {
+  //   "path": "C:\\",
+  //   "size": 256060514304,
+  //   "free": 6553714688,
+  //   "desc": "SAMSUNG MZVLB256HAHQ-000H1",
+  //   "name": "C",
+  //   "color": "var(--niceRed)"
+  // }
+  
+  // await goToSingleView(testDrive.name + ' - ' + testDrive.desc, testDrive);
+  searchFiles("");
 
   // goToSingleView("C - samsung");
   setInterval(() => {
@@ -829,15 +840,27 @@ function makeGraphInfo(info = {}, color){
   return mainDiv;
 }
 function changeLocation(old, _new){
+  window.scrollTo({top: 0});
+
   document.getElementById(old).style.display = 'none';
   document.getElementById(_new).style.display = 'flex';
+
+  if (_new == 'quickSearch') document.body.style.overflowY = 'hidden';
+  else document.body.style.overflowY = 'auto';
 
   currentLocation = _new;
 }
 function navigateTo(nav){
+  window.scrollTo({top: 0});
   if (nav.name == "main") goToMain(true);
   if (nav.name == "singleView"){
     goToSingleView(nav.viewName, nav.viewData, true);
+  }
+  if (nav.name == 'quickSearch'){
+    goToSearch(true);
+    document.body.style.overflowY = 'hidden';
+  }else{
+    document.body.style.overflowY = 'auto';
   }
 }
 function addToNavList(obj = {}){
@@ -986,7 +1009,7 @@ function getFileType(extension) {
   return extension ? 'other' : 'unknown';
 }
 async function getDiskFreeSpace(dir) {
-  const stats = await fs.statfs(dir);
+  const stats = await fs.promises.statfs(dir);
   const freeBytes = stats.bfree * stats.bsize; 
   const totalBytes = stats.blocks * stats.bsize;
   const free = freeBytes; 
@@ -1072,7 +1095,6 @@ async function goToSingleView(name, data = {}, isNav){
   const content = document.getElementById('singleViewContent');
   content.innerHTML = '';
 
-  
   currentLocation = 'singleLocationView';
   
   const header = createDivElement({
@@ -1230,16 +1252,66 @@ async function goToSingleView(name, data = {}, isNav){
 
   const handleLocationData = (data) => {
     const sorted = data.sort((a, b) => b.size - a.size);
-    console.log(sorted)
-    console.log(getDuplicates(sorted))
+    const duplicatesList = getDuplicates(sorted);
+
+    const fileStatsDiv = createDivElement({
+      width: '100%',
+      display: 'flex',
+      gap: '20px',
+      marginBottom: '20px'
+    });
+
+    const top10FileSize = createDivElement({
+      width: '100%',
+      minWidth: '400px',
+      height: '400px',
+      padding: '10px'
+    }, 'smallWindow');
+
+    const duplicateDiv = createDivElement({
+      width: '300px',
+      flexShrink: '0',
+      height: '400px',
+      padding: '10px',
+      overflow: 'hidden'
+    }, 'smallWindow');
+
+    fileStatsDiv.appendChild(top10FileSize)
+    fileStatsDiv.appendChild(duplicateDiv);
+
+    const top10FileList = sorted.slice(0, 10);
+
+    let maxSize = top10FileList[0].size;
+
+    for (let i = 0; i < top10FileList.length; i++){
+      top10FileSize.appendChild(makeUIFileSizeGraph(top10FileList[i].path, {size: top10FileList[i].size, maxSize: maxSize}));
+    }
+
+    const dupLen = 16 > duplicatesList.length ? duplicatesList.length : 16;
+
+    for (let i = 0; i < dupLen; i++){
+      duplicateDiv.appendChild(makeUIListItem(duplicatesList[i].name, duplicatesList[i].amm));
+    }
+
+    content.appendChild(fileStatsDiv);
   }
 
 
   const fileSpaceDistribution = makeUIButton('Statystyki Plików', '150px', '30px', 'var(--niceYellow)');
-  const findDuplicatesBtn = makeUIButton('Szukaj Duplikatów', '150px', '30px');
+  fileSpaceDistribution.onclick = async () => {
+    startLoading(FEW_MINUTES_TEXT);
+    const res = await fileScanPath(data.path);
+    stopLoading();
+    handleLocationData(res);
+  }
+  const searchFilesBtn = makeUIButton('Szukaj Plików', '150px', '30px');
+
+  searchFilesBtn.onclick = () => {
+    goToSearch();
+  } 
 
   bottomButtonsDiv.appendChild(fileSpaceDistribution);
-  bottomButtonsDiv.appendChild(findDuplicatesBtn);
+  bottomButtonsDiv.appendChild(searchFilesBtn);
 
   statsRightDiv.appendChild(bottomButtonsDiv);
 
@@ -1248,18 +1320,56 @@ async function goToSingleView(name, data = {}, isNav){
 
 
   // try to get old (cached) Data
-  try{
-    startLoading();
-    const oldData = await fs.readFile(path.join(savePath, `wholeData_${data.path[0]}.json`));
-    handleLocationData(JSON.parse(oldData))
-    stopLoading();
-  }catch(e){
-    console.error(e);
+  const filePath = path.join(savePath, `wholeData_${data.path[0]}.json`)
+  if (fs.existsSync(filePath)){
+    try{
+      startLoading();
+      const oldData = await fs.promises.readFile(filePath);
+      handleLocationData(JSON.parse(oldData))
+      stopLoading();
+    }catch(e){
+      console.error(e);
+    }
   }
 
   if (!isNav){
     addToNavList({name: 'singleView', viewName: name, viewData: data});
   }
+}
+function makeUIListItem(name, amm){
+  const mainDiv = createDivElement({
+
+  });
+
+  mainDiv.innerHTML = name + ' - ' + amm;
+
+  return mainDiv;
+}
+function makeUIFileSizeGraph(name, props = {}){
+  const mainDiv = createDivElement({
+    display: 'flex',
+    flexDirection: 'column',
+    width: '90%',
+    gap: '4px',
+  });
+
+  const nameDiv = createDivElement({
+
+  });
+
+  nameDiv.innerHTML = name + ' - ' + formatFileSize(props.size, {sizeClass: 'headerSize'});
+
+  const graphLine = createDivElement({
+    width: props.size / props.maxSize * 100 + '%',
+    height: '14px',
+    backgroundColor: 'var(--niceBlue)',
+    borderRadius: '7px'
+  });
+
+  mainDiv.appendChild(nameDiv);
+  mainDiv.appendChild(graphLine);
+
+  return mainDiv;
 }
 function makeUIButton(value, width, height, color = 'var(--niceBlue)'){
   const mainDiv = createDivElement({
@@ -1282,23 +1392,28 @@ function makeUIButton(value, width, height, color = 'var(--niceBlue)'){
 
   return mainDiv;
 }
-function fileScanPath(filePath = 'C:/'){
-  files = [];
-  let currentLength = 0;
-  let done = 0;
-
+async function fileScanPath(filePath = 'C:/'){
   const worker = new Worker(path.resolve(__dirname, 'workers', 'getAllDirInfo.js'), {type: 'module'})
 
   worker.postMessage({path: filePath, ignored: options.ignoredPaths});
 
   console.time('read size');
 
-  worker.onmessage = async (e) => {
-    console.log(e.data);
+  return new Promise((resolve)=> {
+    worker.onmessage = async (e) => {
+  
+      // only save as first char of the disk path for now
+      await fs.promises.writeFile(path.join(savePath, `wholeData_${filePath[0]}.json`), JSON.stringify(e.data));
+  
+      console.timeEnd('read size');
+      resolve(e.data);
+    }
+  })
+}
+function goToSearch(isNav){
+  changeLocation(currentLocation, "quickSearch");
 
-    // only save as first char of the disk path for now
-    await fs.writeFile(path.join(savePath, `wholeData_${filePath[0]}.json`), JSON.stringify(e.data));
-
-    console.timeEnd('read size');
+  if (!isNav){
+    addToNavList({name: 'quickSearch'});
   }
 }

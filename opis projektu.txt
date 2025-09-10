@@ -1,0 +1,14 @@
+
+Opis instalacji i wlączenia aplikacji znajduje sie w readme.txt
+
+    Aplikacja "File Manager" do zarządzania przestrzenią dyskową została zaprojektowana w celu efektywnego monitorowania i optymalizacji zasobów dyskowych. 
+Umożliwia szybkie wyszukiwanie plików na całym dysku, dostarcza szczegółowe informacje o stopniu zajętości przestrzeni dyskowej oraz wskazuje
+pliki o największym rozmiarze, co ułatwia identyfikację i usuwanie niepotrzebnych lub nadmiarowych danych. Ponadto aplikacja oferuje funkcję 
+wykrywania duplikatów plików, prezentując ich liczbę i lokalizację, co wspiera użytkownika w racjonalnym zarządzaniu przestrzenią dyskową i 
+zwiększaniu efektywności wykorzystania zasobów.
+
+Co można poprawić:
+    Czas ładowania UI - UI aktualnie czeka na wartosci przed załadowaniem, można załadować UI przed pokazaniem wartości i zastąpić je tekstem "..." lub "ładowanie"
+    Czas zbierania danych z dysku - file system w javasciptcie nie jest zbyt szybki mozna użyć c/c++ aby przyspieszyc ten proces i wysłac wartosci do javascript
+    Dokładniejsze sprawdzanie duplikatów - aktualnie apikacja liczy tylko liczbe folderów o tej samej nazwie nie patrząc na ich strukture
+
