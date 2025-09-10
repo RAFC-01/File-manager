@@ -1,5 +1,6 @@
 
 Opis instalacji i wlączenia aplikacji znajduje sie w readme.txt
+Zjecia w folderze "screenshooty"
 
     Aplikacja "File Manager" do zarządzania przestrzenią dyskową została zaprojektowana w celu efektywnego monitorowania i optymalizacji zasobów dyskowych. 
 Umożliwia szybkie wyszukiwanie plików na całym dysku, dostarcza szczegółowe informacje o stopniu zajętości przestrzeni dyskowej oraz wskazuje
@@ -8,7 +9,12 @@ wykrywania duplikatów plików, prezentując ich liczbę i lokalizację, co wspi
 zwiększaniu efektywności wykorzystania zasobów.
 
 Co można poprawić:
-    Czas ładowania UI - UI aktualnie czeka na wartosci przed załadowaniem, można załadować UI przed pokazaniem wartości i zastąpić je tekstem "..." lub "ładowanie"
-    Czas zbierania danych z dysku - file system w javasciptcie nie jest zbyt szybki mozna użyć c/c++ aby przyspieszyc ten proces i wysłac wartosci do javascript
-    Dokładniejsze sprawdzanie duplikatów - aktualnie apikacja liczy tylko liczbe folderów o tej samej nazwie nie patrząc na ich strukture
+    1. Optymalizacja czasu ładowania interfejsu użytkownika: Obecnie interfejs użytkownika oczekuje na pełne załadowanie danych przed wyświetleniem, 
+    co wydłuża czas inicjacji aplikacji. Proponowanym rozwiązaniem jest asynchroniczne ładowanie danych z wyświetlaniem tymczasowych placeholderów (np. "Ładowanie...") 
+    w celu poprawy responsywności interfejsu.
 
+    2. Zwiększenie wydajności skanowania systemu plików: Proces zbierania danych o plikach w JavaScript jest ograniczony przez wysokopoziomowy dostęp do systemu plików.
+    Zastosowanie języków C/C++ pozwoliłoby przyspieszyć operacje skanowania, szczególnie na dyskach o dużej liczbie plików.
+    
+    3. Poprawa algorytmu wykrywania duplikatów: Obecna metoda opiera się na analizie nazw folderów, co może prowadzić do niedokładnych wyników. 
+    Wprowadzenie algorytmu hashowania zawartości plików (np. MD5 lub SHA) umożliwi precyzyjne identyfikowanie duplikatów na podstawie ich zawartości, niezależnie od nazw czy lokalizacji.

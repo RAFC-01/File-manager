@@ -7,3 +7,5 @@ npm start
 Uwagi:
     Aplikacja długo sie ładuje za pierwszym razem!
     Aplikacja nie modyfikuje żadnych plików na dysku!
+
+Niestety miałem problem z dodaniu funkcji do obsługi "google drive" ale pracuje nad tym

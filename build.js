@@ -9,7 +9,7 @@ const mainPath = path.join(__dirname, 'client', 'index.html');
 
 const createWindow = () => {
     const win = new BrowserWindow({
-      width: 1280,
+      width: 1400,
       height: 720,
       backgroundColor: 'black',
       // autoHideMenuBar: true,

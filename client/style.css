@@ -299,6 +299,7 @@ canvas{
     display: none;
     justify-content: center;
     align-items: center;
+    user-select: none;
 }
 #loadingWindow{
     width: 400px;
